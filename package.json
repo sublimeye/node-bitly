@@ -36,9 +36,13 @@
     "test": "node_modules/.bin/nodeunit test"
   },
   "devDependencies": {
+    "gulp": "^3.9.0",
+    "gulp-babel": "^5.1.0",
+    "gulp-sourcemaps": "^1.5.2",
     "nodeunit": "^0.9.1"
   },
   "dependencies": {
-    "q": "^1.4.1"
+    "q": "^1.4.1",
+    "request": "^2.58.0"
   }
 }
