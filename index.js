@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * node-bitly - A node module for calling the bitly API
  * See http://code.google.com/p/bitly-api/wiki/ApiDocumentation for details
@@ -7,32 +9,26 @@
  */
 
 var q = require('q');
+var _ = require('lodash');
 var url = require('url');
 var https = require('https');
 
 /**
  * The main Bitly constructor, takes the users login, api key and additional options
- * @param {String} login   The user login
- * @param {String} api_key The users API key
+ * @param {String} accessToken The API OAuth access token
  * @param {Object} options Optional options
  */
-var Bitly = function(access_token, options) {
+var Bitly = function (accessToken, options) {
   // Set default options
-  options = options || {
+  this.config = _.defaults({}, options, {
     format: 'json',
     api_url: 'api-ssl.bitly.com',
     api_version: 'v3',
     domain: 'bit.ly'
-  };
+  });
 
   // Set up the config for requests being made with the instance of this
-  this.config = {
-    access_token: access_token,
-    format: options.format,
-    api_url: options.api_url,
-    api_version: options.api_version,
-    domain: options.domain
-  };
+  this.config.access_token = accessToken;
 
   return this;
 };
@@ -44,20 +40,19 @@ var Bitly = function(access_token, options) {
  * @param  {String} method The Bit.ly method to call with the request
  * @return {Object} The URL object for this request
  */
-Bitly.prototype._generateNiceUrl = function(query, method) {
+Bitly.prototype._generateNiceUrl = function (query, method) {
   // Make sure the access_token gets sent with every query
-  query['access_token'] = this.config.access_token;
 
-  var result = url.parse(url.format({
+  query = _.defaults({}, query, {
+    access_token: this.config.access_token
+  });
+
+  return url.parse(url.format({
     protocol: 'https',
     hostname: this.config.api_url,
     pathname: '/' + this.config.api_version + '/' + method,
     query: query
   }));
-  // HACK: Fixes the redirection issue in node 0.4.x
-  if (!result.path) { result.path = result.pathname + result.search; }
-
-  return result;
 };
 
 /**
@@ -66,7 +61,7 @@ Bitly.prototype._generateNiceUrl = function(query, method) {
  * @param  {Function=} cb The callback function for the returned data
  * @return {Promise|void}
  */
-Bitly.prototype._doRequest = function(request_query, cb) {
+Bitly.prototype._doRequest = function (request_query, cb) {
 
   var deferred;
 
@@ -75,35 +70,37 @@ Bitly.prototype._doRequest = function(request_query, cb) {
   }
 
   // Pass the requested URL as an object to the get request
-  https.get(request_query, function(res) {
-    var data = [];
+  https.get(request_query, function (res) {
+      var data = [];
 
-    res
-      .on('data', function(chunk) { data.push(chunk); })
-      .on('end', function() {
-        var urldata = data.join('').trim();
-        var result;
-        try {
-          result = JSON.parse(urldata);
-        } catch (exp) {
-          result = {'status_code': 500, 'status_text': 'JSON Parse Failed'};
-        }
+      res
+        .on('data', function (chunk) {
+          data.push(chunk);
+        })
+        .on('end', function () {
+          var urldata = data.join('').trim();
+          var result;
+          try {
+            result = JSON.parse(urldata);
+          } catch (exp) {
+            result = { 'status_code': 500, 'status_text': 'JSON Parse Failed' };
+          }
 
-        if (result.status_code !== 200) {
-          var error = new Error(result.status_txt);
-          error.code = result.status_code;
-          return deferred ? deferred.reject(error) : cb(error);
-        }
-        return deferred ? deferred.resolve(result) : cb(null, result);
+          if (result.status_code !== 200) {
+            var error = new Error(result.status_txt);
+            error.code = result.status_code;
+            return deferred ? deferred.reject(error) : cb(error);
+          }
+          return deferred ? deferred.resolve(result) : cb(null, result);
 
-      });
-  })
-  .on('error', function(e) {
-    if (deferred) {
-      return deferred.reject(e);
-    }
-    return cb(e);
-  });
+        });
+    })
+    .on('error', function (error) {
+      if (deferred) {
+        return deferred.reject(error);
+      }
+      return cb(error);
+    });
 
   if (deferred) {
     return deferred.promise;
@@ -115,32 +112,38 @@ Bitly.prototype._doRequest = function(request_query, cb) {
  * @param  {String} str The URL string to be checked
  * @return {Boolean}
  */
-Bitly.prototype._urlCheck = function(str) {
-    var v = new RegExp();
-    v.compile("^[A-Za-z]+://[A-Za-z0-9-_]+\\.[A-Za-z0-9-_%&\\?\/.=]+$");
-    if (!v.test(str)) return false;
-    return true;
+Bitly.prototype._urlCheck = function (str) {
+  var v = new RegExp();
+  v.compile('^[A-Za-z]+://[A-Za-z0-9-_]+\\.[A-Za-z0-9-_%&\\?\/.=]+$');
+  return v.test(str);
 };
 
 /**
  * Function to check through an array of items to check for short urls or hashes
  * @param  {Array} items The array of items to be checked
- * @param  {Object} The query object
- * @return {void)
+ * @param  {Object} query The query object
+ * @return {void}
  */
-Bitly.prototype._sortUrlsAndHash = function(items, query) {
+Bitly.prototype._sortUrlsAndHash = function (items, query) {
   var shortUrl = [];
   var hash = [];
   var i = 0, j = items.length;
-  for(; i < j; i++) {
+  for (; i < j; i++) {
     if (this._urlCheck(items[i])) {
       shortUrl.push(items[i]);
     } else {
       hash.push(items[i]);
     }
   }
-  if (shortUrl.length > 0) query.shortUrl = shortUrl;
-  if (hash.length > 0) query.hash = hash;
+  /* istanbul ignore else */
+  if (shortUrl.length > 0) {
+    query.shortUrl = shortUrl;
+  }
+
+  /* istanbul ignore else */
+  if (hash.length > 0) {
+    query.hash = hash;
+  }
 };
 
 /**
@@ -150,7 +153,7 @@ Bitly.prototype._sortUrlsAndHash = function(items, query) {
  * @param  {Function=} cb The callback function with the results
  * @return {Promise|void}
  */
-Bitly.prototype.shorten = function(longUrl, domain, cb) {
+Bitly.prototype.shorten = function (longUrl, domain, cb) {
   if (typeof(domain) == 'function') {
     cb = domain;
     domain = null;
@@ -174,7 +177,7 @@ Bitly.prototype.shorten = function(longUrl, domain, cb) {
  * @param  {Function=} cb The callback function with the results
  * @return {Promise|void}
  */
-Bitly.prototype.expand = function(items, cb) {
+Bitly.prototype.expand = function (items, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -196,7 +199,7 @@ Bitly.prototype.expand = function(items, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.clicks = function(items, cb) {
+Bitly.prototype.clicks = function (items, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -218,7 +221,7 @@ Bitly.prototype.clicks = function(items, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.clicksByMinute = function(items, cb) {
+Bitly.prototype.clicksByMinute = function (items, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -241,7 +244,7 @@ Bitly.prototype.clicksByMinute = function(items, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.clicksByDay = function(items, cb) {
+Bitly.prototype.clicksByDay = function (items, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -263,7 +266,7 @@ Bitly.prototype.clicksByDay = function(items, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.lookup = function(links, cb) {
+Bitly.prototype.lookup = function (links, cb) {
   var query = {
     format: this.config.format,
     url: links,
@@ -271,7 +274,6 @@ Bitly.prototype.lookup = function(links, cb) {
   };
 
   return this._doRequest(this._generateNiceUrl(query, 'lookup'), cb);
-
 };
 
 /**
@@ -280,7 +282,7 @@ Bitly.prototype.lookup = function(links, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.info = function(items, cb) {
+Bitly.prototype.info = function (items, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -297,7 +299,6 @@ Bitly.prototype.info = function(items, cb) {
 };
 
 
-
 /**
  * Request the informations on all referrers for a short url.  This function only
  * accepts one url (as per the limit of the bitly API)
@@ -305,7 +306,7 @@ Bitly.prototype.info = function(items, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.referrers = function(link, cb) {
+Bitly.prototype.referrers = function (link, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -319,10 +320,11 @@ Bitly.prototype.referrers = function(link, cb) {
 /**
  * Request the information on all countries for a short url.  This function only
  * accepts one url (as per the limit of the bitly API)
+ * @param {String} link The link to be checked
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.countries = function(link, cb) {
+Bitly.prototype.countries = function (link, cb) {
   var query = {
     format: this.config.format,
     domain: this.config.domain
@@ -339,7 +341,7 @@ Bitly.prototype.countries = function(link, cb) {
  * @param  {Function=} cb The callback function
  * @return {Promise|void}
  */
-Bitly.prototype.bitlyProDomain = function(domain, cb) {
+Bitly.prototype.bitlyProDomain = function (domain, cb) {
   var query = {
     format: this.config.format,
     domain: domain
@@ -352,24 +354,24 @@ Bitly.prototype.bitlyProDomain = function(domain, cb) {
  * Edit an existing link's metadata
  * @param {String|Array} metadata_field Metadata field to edit (title, note, private, user_ts or archived). To edit
  * multiple fields, pass an array of field names as strings, e.g. ['title', 'note']
- * @param {String} link The Bitlink to be edited (requires protocol, i.e "example.com" won't work but "http://example.com"
- * will)
+ * @param {String} link The Bitlink to be edited
+ * (requires protocol, i.e "example.com" won't work but "http://example.com" will)
  * @param {String|Array} new_value The new value for the edited metadata. If you pass an array to metadata_field, you
  * have to pass an array to new_value. The index have to match those in metadata_field, e.g. metadata_field[0] will be
  * changed to new_value[0] etc.
  * @param {Function=} cb The callback
  * @return {Promise|void}
  */
-Bitly.prototype.linkEdit = function(metadata_field, link, new_value, cb) {
+Bitly.prototype.linkEdit = function (metadata_field, link, new_value, cb) {
   var query = {
     link: link
   };
 
   // We can use an array of fields and matching values to edit multiple metadata fields or strings to edit only a
   // single one
-  if(Array.isArray(metadata_field) && Array.isArray(new_value)) {
+  if (Array.isArray(metadata_field) && Array.isArray(new_value)) {
     query['edit'] = metadata_field.join(',');
-    metadata_field.forEach(function mapMetadataToValue(field, index) {
+    metadata_field.forEach(function mapMetadataToValue (field, index) {
       query[field] = new_value[index];
     });
   } else {

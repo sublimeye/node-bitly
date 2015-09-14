@@ -2,3 +2,4 @@
 *.tpm
 node_modules/
 .idea/
+coverage/
