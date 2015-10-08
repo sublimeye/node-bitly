@@ -7,7 +7,7 @@
     "shortner",
     "util"
   ],
-  "version": "3.0.1",
+  "version": "3.0.2",
   "author": "Tane Piper <piper.tane@gmail.com>",
   "contributors": [
     {
@@ -27,6 +27,10 @@
     {
       "name": "coaxial",
       "email": "coaxial@cxial.tk"
+    },
+    {
+      "name": "Ildar Sagdejev",
+      "email": "specious@gmail.com"
     }
   ],
   "repository": {
