@@ -55,6 +55,7 @@ class Bitly {
     return new Promise((resolve, reject) => {
       return fetch(requestUri)
         .then((response) => {
+          /* istanbul ignore else */
           if (response.status >= 400) {
             return reject(createError(response.status, response.statusText, response));
           }
