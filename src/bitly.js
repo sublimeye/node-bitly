@@ -47,6 +47,14 @@ class Bitly {
 
   /**
    * Function to do a HTTP Get request with the current query
+   *
+   * When a request is done, bit.ly will return a JSON string
+   * that indicates the success or failure of a request.  Some
+   * requests will return a 200 response but will contain errors
+   * which are found in the json.data.info.error property.
+   *
+   * For these cases you need to handle the error yourself
+   *
    * @param  {Object} requestUri The current query object
    * @return {Promise}
    */
@@ -55,11 +63,21 @@ class Bitly {
     return new Promise((resolve, reject) => {
       return fetch(requestUri)
         .then((response) => {
+
           /* istanbul ignore else */
-          if (response.status >= 400) {
-            return reject(createError(response.status, response.statusText, response));
+          if (response.statusCode >= 400) {
+            // This error comes from an underlying request failure
+            return reject(response.statusCode, response.statusText, response);
           }
-          return resolve(response.json());
+
+          response.json().then((json) => {
+            /* istanbul ignore else */
+            if (json.status_code >= 400) {
+              // This error comes from a bit.ly response
+              return reject(createError(json.status_code, json.status_text, json));
+            }
+            return resolve(json);
+          });
         });
     });
   }
