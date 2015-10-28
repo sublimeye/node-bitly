@@ -6,11 +6,10 @@ import 'sepia';
 
 let bitly;
 let bitly_token = 'eb1b99efe83c7d029e7600a6b38e32d1c9c2c6d9';
-const LONG_URL = 'http://example.com';
 const SHORT_URL = 'http://bit.ly/1KjIwXl';
-const BITLY_HASH = 'VDcn';
+const SHORT_URL_INVALID = 'http://bit.ly/invalidurl';
 
-describe('Bitly clicks API', () => {
+describe('link/clicks', () => {
 
   beforeEach(() => {
     bitly = new Bitly(bitly_token);
@@ -27,17 +26,10 @@ describe('Bitly clicks API', () => {
     }, done);
   });
 
-  it('should return a success for a single hash', (done) => {
-    bitly.clicks(BITLY_HASH).then((result) => {
-      expect(result).to.have.property('status_code').and.to.equal(200);
+  it('should return an error for a invalid short url', (done) => {
+    bitly.clicks(SHORT_URL_INVALID).then(() => {}, (error) => {
+      expect(error).to.be.instanceOf(Error);
       done();
-    }, done);
-  });
-
-  it('should return a success for a hash and short url mixed array', (done) => {
-    bitly.clicks([SHORT_URL, BITLY_HASH]).then((result) => {
-      expect(result).to.have.property('status_code').and.to.equal(200);
-      done();
-    }, done);
+    });
   });
 });

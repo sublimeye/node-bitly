@@ -5,6 +5,9 @@ import { isUri } from 'valid-url';
 import { create as createError } from 'boom';
 import 'isomorphic-fetch';
 
+import bitlyData from './bitly.data';
+import bitlyLinks from './bitly.links';
+
 class Bitly {
 
   /**
@@ -23,6 +26,9 @@ class Bitly {
       api_version: 'v3',
       domain: 'bit.ly'
     });
+
+    this.data = Object.assign(this, bitlyData(this));
+    this.links = Object.assign(this, bitlyLinks(this));
   }
 
 
@@ -42,7 +48,7 @@ class Bitly {
       hostname: this.config.api_url,
       pathname: '/' + this.config.api_version + '/' + method,
       query: query
-    }));
+    })).href;
   }
 
   /**
@@ -59,7 +65,6 @@ class Bitly {
    * @return {Promise}
    */
   doRequest (requestUri) {
-
     return new Promise((resolve, reject) => {
       return fetch(requestUri)
         .then((response) => {
@@ -108,6 +113,30 @@ class Bitly {
     }
   }
 
+
+
+  /**
+   * Request to get clicks for a single short url, by default it returns clicks for a day
+   * See http://dev.bitly.com/link_metrics.html#v3_link_clicks for available parameters
+   * @param {String} link A string of a bitly short url
+   * @param {Object=} extraOptions Optional extra options to pass to the querystring.
+   * @return {Promise}
+   */
+  clicks (link, extraOptions) {
+
+    extraOptions = extraOptions || {};
+
+    var query = Object.assign({}, {
+      format: this.config.format,
+      domain: this.config.domain,
+      link: link
+    }, extraOptions);
+
+    return this.doRequest(this.generateNiceUrl(query, 'link/clicks'));
+  }
+
+
+
   /**
    * Request to shorten one long url
    * @param  {String} longUrl The URL to be shortened
@@ -124,70 +153,9 @@ class Bitly {
     return this.doRequest(this.generateNiceUrl(query, 'shorten'));
   }
 
-  /**
-   * Request to expand a single short url, short hash or mixed array or items
-   * @param  {String|Array} items  The string or array of short urls and/or hashes to expand
-   * @return {Promise}
-   */
-  expand (items) {
-    var query = {
-      format: this.config.format,
-      domain: this.config.domain
-    };
 
-    this.sortUrlsAndHash(items, query);
 
-    return this.doRequest(this.generateNiceUrl(query, 'expand'));
-  }
 
-  /**
-   * Request to get clicks for a single short url, short hash or mixed array or items
-   * @param  {String|Array} items  The string or array of short urls and/or hashes to expand
-   * @return {Promise}
-   */
-  clicks (items) {
-    var query = {
-      format: this.config.format,
-      domain: this.config.domain
-    };
-
-    this.sortUrlsAndHash(items, query);
-
-    return this.doRequest(this.generateNiceUrl(query, 'clicks'));
-  }
-
-  /**
-   * Request to get clicks by minute for a single short url, short hash or mixed array or items
-   * @param  {String|Array} items  The string or array of short urls and/or hashes to expand
-   * @return {Promise}
-   */
-  clicksByMinute (items) {
-    var query = {
-      format: this.config.format,
-      domain: this.config.domain
-    };
-
-    this.sortUrlsAndHash(items, query);
-
-    return this.doRequest(this.generateNiceUrl(query, 'clicks_by_minute'));
-
-  }
-
-  /**
-   * Request to get clicks by day for a single short url, short hash or mixed array or items
-   * @param  {String|Array} items  The string or array of short urls and/or hashes to expand
-   * @return {Promise}
-   */
-  clicksByDay (items) {
-    var query = {
-      format: this.config.format,
-      domain: this.config.domain
-    };
-
-    this.sortUrlsAndHash(items, query);
-
-    return this.doRequest(this.generateNiceUrl(query, 'clicks_by_day'));
-  }
 
   /**
    * Request to get look up an existing bitly link for a long url or array of urls
@@ -204,23 +172,6 @@ class Bitly {
     return this.doRequest(this.generateNiceUrl(query, 'lookup'));
 
   }
-
-  /**
-   * Request to get clicks by day for a single short url, short hash or mixed array or items
-   * @param  {String|Array} items  The string or array of short urls and/or hashes to expand
-   * @return {Promise}
-   */
-  info (items) {
-    var query = {
-      format: this.config.format,
-      domain: this.config.domain
-    };
-
-    this.sortUrlsAndHash(items, query);
-
-    return this.doRequest(this.generateNiceUrl(query, 'info'));
-  }
-
 
   /**
    * Request the informations on all referrers for a short url.  This function only
